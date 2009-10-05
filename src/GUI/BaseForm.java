@@ -221,7 +221,7 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
         frame.pack();
         frame.setVisible(true);
 
-        frame.setTitle("SyncBoss v1.0b");
+        frame.setTitle("SyncBoss v0.2a ($Revision$)");
     }
 
     private void createUIComponents() {
