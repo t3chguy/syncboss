@@ -226,9 +226,37 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
 
     private void createUIComponents() {
         Vector<Object> list = new Vector<Object>();
+        Line.Info showAll = new Line.Info(SourceDataLine.class);
         for (Mixer.Info m : AudioSystem.getMixerInfo()) {
-            list.add(new ListObject(m.getName(), m));
+
+            Mixer mixer = AudioSystem.getMixer(m);        
+            for (Line.Info lineinfo : mixer.getSourceLineInfo(showAll)) { //just check if there's a SDL line, dont care what it is
+                list.add(new ListObject(m.getName(), m));
+                break;
+            }
+
+
         }
+
+
+        //debugger code  //TODO:REMOVE
+        /*Line.Info showAll = new Line.Info(Object.class);
+        //iterate mixers
+        for (Mixer.Info info : AudioSystem.getMixerInfo()) {
+
+            Mixer mixer = AudioSystem.getMixer(info);
+            //print mixer details
+            System.out.println(info.toString() + "(" + mixer.toString() + ")");
+            //iterate SourceDataLines for the mixer, printing info
+            for (Line.Info lineinfo : mixer.getSourceLineInfo(showAll)) {
+                System.out.println("...source line: " + lineinfo.toString() + " (" + lineinfo.getClass().getName() + ")");
+            }
+            //iterate TargetDataLines for the mixer, printing info
+            for (Line.Info lineinfo : mixer.getTargetLineInfo(showAll)) {
+                System.out.println("...target line: " + lineinfo.toString() + " (" + lineinfo.getClass().getName() + ")");
+            }
+        } */
+
         outputDeviceSelect = new JComboBox(list);
         outputDeviceSelect.setSelectedIndex(0);
 
