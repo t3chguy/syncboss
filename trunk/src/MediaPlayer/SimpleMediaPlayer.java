@@ -216,14 +216,38 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
         }
     }*/
 
+    double effectiveDriftMultiplier=-1; //consider the limited resolution given number of frames, can only remove/add 1 at a time
+    double historicalDriftMultiplier=-1;
+    long respeedCount=0;
     public byte[] respeed(byte[] buf, int off, int len) {
+        if(effectiveDriftMultiplier == -1) {
+            effectiveDriftMultiplier = driftMultiplier;
+        }
         byte[] outbuf;
-        double invFactor = 2 - driftMultiplier; //high multplier means we want less frames, and vica versa
+        double invFactor = 2 - effectiveDriftMultiplier; //high multplier means we want less frames, and vica versa
         int size = (int) (invFactor * len);
         outbuf = new byte[size];
+
         for (int i = 0; i < size / format.getFrameSize(); i++) {
-            System.arraycopy(buf, (int) (driftMultiplier * i) * format.getFrameSize(), outbuf, i * format.getFrameSize(), format.getFrameSize());
+            System.arraycopy(buf, (int) (effectiveDriftMultiplier * i) * format.getFrameSize(), outbuf, i * format.getFrameSize(), format.getFrameSize());
         }
+
+        double minunit = 1.0 / (((double)MediaTransmitter.getPacketSize() / (double)format.getFrameSize())); //todo: dont execute this each time lol       
+        double actualDriftMultiplier = 2.0-(double)((double)size / (double)len);
+
+        historicalDriftMultiplier = ((historicalDriftMultiplier * respeedCount) + (actualDriftMultiplier)) / (respeedCount+1);
+
+        if(historicalDriftMultiplier < driftMultiplier) {
+            effectiveDriftMultiplier = effectiveDriftMultiplier + minunit;
+        } else if (historicalDriftMultiplier > driftMultiplier) {
+            effectiveDriftMultiplier = effectiveDriftMultiplier - minunit;
+        }
+
+        if (respeedCount % 100 == 0) {
+            System.out.printf("Respeed info: target: %f, historical: %f, effective: %f, actual(current): %f, min unit: %f\n", driftMultiplier, historicalDriftMultiplier, effectiveDriftMultiplier, actualDriftMultiplier,minunit);
+        }
+
+        respeedCount++;
         return outbuf;
     }
 
@@ -377,7 +401,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
 
                 //once sync has been polled 50 times exactly, update sync offset
                 //this measures how good the seek was
-                if(avgDifCount == 150 && thisFragmentPos > 50 && correctDrift) { //adjust seekOffset, average over all seeks... TODO: save this PER DEVICE, per computer ><
+                if(avgDifCount == 100 /* && thisFragmentPos > 50*/ && correctDrift) { //adjust seekOffset, average over all seeks... TODO: save this PER DEVICE, per computer ><
                     seekOffset = ((seekOffset*(double)seekOffsetCount) - (avgDif-seekOffset))/((double)seekOffsetCount+1.0);
                     seekOffsetCount++;
                     lastSeekOffset = avgDif;
@@ -385,7 +409,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
                 }
 
                 //do seek if req'd
-                if ((avgDif < -45 || avgDif > 45 || forceResync) && avgDifCount >= 50) {
+                if ((avgDif < -20 || avgDif > 20 || forceResync) && avgDifCount >= 50 && curTime() - lastSeekTime > 5000) {
                     forceResync = false;
                     lastDriftOffset = avgDif;
                     lastDriftTime = curTime();
@@ -499,7 +523,9 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
             double newMultiplier = 2 - mult2;
 
 
-
+            effectiveDriftMultiplier=-1; //consider the limited resolution given number of frames, can only remove/add 1 at a time
+            historicalDriftMultiplier=-1;
+            respeedCount=0;
 
             //if(newMultiplier < 1.1 && newMultiplier > 0.9) {
                 System.out.printf("Over %dms, drifted %fms under multiplier of %f (otherwise would have been %fms). Drift correction set from: %f to: %f\n",t2-t1,x2-x1,driftMultiplier,x2a-x1,driftMultiplier, newMultiplier);
