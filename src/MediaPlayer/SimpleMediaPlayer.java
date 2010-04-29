@@ -525,6 +525,12 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
             double error = (gt2 - gt1)/(2-oldMultiplier);
             double diffperms = diff / (t2-t1); //difference per millisecond traversed.. i.e. rate of divergance*/
 
+            //damp measurements made over short periods to account for oscillation
+            double damp  = 1;
+            if (t < 100000)  { //100s
+                damp =  t/100000;
+            }
+
             double mult = (2-driftMultiplier);
 
             double x2 = lastDriftOffset;
@@ -540,9 +546,11 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
             historicalDriftMultiplier=-1;
             respeedCount=0;
 
+
             if(newMultiplier < 1.1 && newMultiplier > 0.9) {
-                System.out.printf("Over %dms, drifted %fms under multiplier of %f (otherwise would have been %fms). Drift correction set from: %f to: %f\n",t2-t1,x2-x1,driftMultiplier,x2a-x1,driftMultiplier, newMultiplier);
-                driftMultiplier = newMultiplier;
+                double newMultiplierDamped = damp * (newMultiplier-1) + (1-damp) * (driftMultiplier - 1) + 1;
+                System.out.printf("Over %dms, drifted %fms under multiplier of %f (otherwise would have been %fms). Drift correction set from: %f to: %f (undampened: %f)\n",t2-t1,x2-x1,driftMultiplier,x2a-x1,driftMultiplier,newMultiplierDamped, newMultiplier);
+                driftMultiplier = newMultiplierDamped;
                 prefs.putDouble("respeed_coefficient", driftMultiplier);
             }
 
