@@ -5,6 +5,7 @@ import GUI.OffsetRegistry;
 
 import javax.sound.sampled.*;
 import java.util.Calendar;
+import java.util.prefs.Preferences;
 
 import Shared.StateManager;
 
@@ -33,6 +34,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
     long head = 0;
     long read = 0;
     byte[] silent = new byte[MediaTransmitter.getPacketSize()];
+    Preferences prefs = Preferences.userNodeForPackage(getClass());
 
     public SimpleMediaPlayer(Mixer.Info mixerInfo, VolumeRegistry volumeRegistry, OffsetRegistry offsetRegistry) {
         this.mixerInfo = mixerInfo;
@@ -41,6 +43,15 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
         for (int i = 0; i < MediaTransmitter.getPacketSize(); i++) { // full on silence
             silent[i] = 0;
         }
+
+
+        seekOffset = prefs.getDouble("seek_offset", 0.0);
+        System.out.printf("Loaded seek_offset: %f\n", seekOffset);
+        seekOffsetCount = prefs.getLong("seek_count", 0);
+        System.out.printf("Loaded seek_count: %d\n", seekOffsetCount);
+        driftMultiplier = prefs.getDouble("respeed_coefficient", 1.0);
+        System.out.printf("Loaded respeed_coefficient: %f\n", driftMultiplier);
+
     }
 
     public void play() {
@@ -340,8 +351,8 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
         }
     }
 
-    double avgDif = 0;
-    long avgDifCount = 0;
+    double avgDif;
+    long avgDifCount;
     boolean correctDrift = true;
     public void syncLine() {
         //some synchronisation vars:
@@ -405,6 +416,8 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
                     seekOffset = ((seekOffset*(double)seekOffsetCount) - (avgDif-seekOffset))/((double)seekOffsetCount+1.0);
                     seekOffsetCount++;
                     lastSeekOffset = avgDif;
+                    prefs.putDouble("seek_offset", seekOffset);
+                    prefs.putLong("seek_count", Math.min(seekOffsetCount, 50));
                     System.out.println("Seek was out by "+avgDif+" ms.. seek offset adjusted to: " + seekOffset);
                 }
 
@@ -527,10 +540,11 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
             historicalDriftMultiplier=-1;
             respeedCount=0;
 
-            //if(newMultiplier < 1.1 && newMultiplier > 0.9) {
+            if(newMultiplier < 1.1 && newMultiplier > 0.9) {
                 System.out.printf("Over %dms, drifted %fms under multiplier of %f (otherwise would have been %fms). Drift correction set from: %f to: %f\n",t2-t1,x2-x1,driftMultiplier,x2a-x1,driftMultiplier, newMultiplier);
                 driftMultiplier = newMultiplier;
-            //}
+                prefs.putDouble("respeed_coefficient", driftMultiplier);
+            }
 
         }
     }
