@@ -56,7 +56,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
                 }
             };
             t.start();
-            
+
         }
     }
 
@@ -78,7 +78,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
 
     public void setFormat(AudioFormat format) {
         this.format = format;
-        
+
         // Get information about the format of the stream
         DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
 
@@ -93,7 +93,6 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
             e.printStackTrace();
             return;
         }
-
 
         //sampleRate = (FloatControl)line.getControl(FloatControl.Type.SAMPLE_RATE);
 
@@ -217,28 +216,27 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
         }
     }*/
 
-    byte[] respeedbuf = new byte[MediaTransmitter.getPacketSize()*2];
-    public int respeed(byte[] out, byte[] in, int off, int len) {
+    public byte[] respeed(byte[] buf, int off, int len) {
+        byte[] outbuf;
         double invFactor = 2 - driftMultiplier; //high multplier means we want less frames, and vica versa
         int size = (int) (invFactor * len);
+        outbuf = new byte[size];
         for (int i = 0; i < size / format.getFrameSize(); i++) {
-            System.arraycopy(in, (int) (driftMultiplier * i) * format.getFrameSize(), out, i * format.getFrameSize(), format.getFrameSize());
+            System.arraycopy(buf, (int) (driftMultiplier * i) * format.getFrameSize(), outbuf, i * format.getFrameSize(), format.getFrameSize());
         }
-        return size;
+        return outbuf;
     }
 
     /**
      * Method handles buffer
      */
     boolean doBuffer=false;
-    byte[] buf = new byte[MediaTransmitter.getPacketSize()+32]; //temp buffer to manipulate data
-    byte[] spill = new byte[64]; //handle un-even frame amounts when writing to the data line
     public void buffer() {
         //line.start();
         int size = MediaTransmitter.getPacketSize();
         int frameSize = format.getFrameSize();
-
-
+        byte[] buf = new byte[MediaTransmitter.getPacketSize()+32]; //temp buffer to manipulate data
+        byte[] spill = new byte[64]; //handle un-even frame amounts when writing to the data line
         int spillLength = 0;
 
         //start line sync thread
@@ -291,11 +289,11 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
 
             System.arraycopy(soundFragments[(int) (read % BUFSIZE)], 0, buf, 0 + spillLength, size);
 
-            int resizedLen = respeed(respeedbuf,buf, 0, size);
+            byte[] resizedBuf = respeed(buf, 0, size);
 
             // Now write the bytes. The line will buffer them and play
             // them. This call will block until all bytes are written.
-            int evenFrames = (resizedLen / frameSize) * frameSize;
+            int evenFrames = (resizedBuf.length / frameSize) * frameSize;
 
             //prebuffer code
             while(line.available() < evenFrames) {
@@ -306,10 +304,10 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
                     e.printStackTrace();
                 }
             }
-            line.write(respeedbuf, 0, evenFrames);
+            line.write(resizedBuf, 0, evenFrames);
             spillLength = size % frameSize;
             if (spillLength > 0) {
-                System.arraycopy(respeedbuf, evenFrames, spill, 0, spillLength);
+                System.arraycopy(resizedBuf, evenFrames, spill, 0, spillLength);
             }
 
             // Increment buffer reading head
@@ -358,7 +356,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
                 if((justSeeked && (dif<-100 || dif>100)) || (dif<-100000 || dif > 100000)) {
                     System.out.println("Seek time was unusual... " + dif + "ms");
                 } else {
-                   //difference moving average                      
+                   //difference moving average
                    avgDif = (avgDif*(double)avgDifCount + (double)dif)/(double)(avgDifCount + 1.0);
                    if(avgDifCount < 200) {
                        avgDifCount++;
@@ -376,7 +374,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
                    System.out.printf("\n");
                    StateManager.form.getSyncMonitor().setValue((int)avgDif);
                }
-               
+
                 //once sync has been polled 50 times exactly, update sync offset
                 //this measures how good the seek was
                 if(avgDifCount == 150 && thisFragmentPos > 150 && correctDrift) { //adjust seekOffset, average over all seeks... TODO: save this PER DEVICE, per computer ><
@@ -387,7 +385,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
                 }
 
                 //do seek if req'd
-                if ((avgDif < -45 || avgDif > 45 || forceResync) && avgDifCount >= 10) {
+                if ((avgDif < -45 || avgDif > 45 || forceResync) && avgDifCount >= 50) {
                     forceResync = false;
                     lastDriftOffset = avgDif;
                     lastDriftTime = curTime();
@@ -449,12 +447,12 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
         }
 
         //determine speedup/slowdown
-        if (seekOffsetCount > 1 && lastSeekTime != 0 && lastDriftTime != 0 && correctDrift) { //todo: are all these checks needed? think abt your code
+        if (seekOffsetCount > 0 && lastSeekTime != 0 && lastDriftTime != 0 && correctDrift) { //todo: are all these checks needed? think abt your code
             double driftAmount = lastDriftOffset - lastSeekOffset; //how much did it actually drift
             long driftTime = lastDriftTime - lastSeekTime;
             driftAmount -= driftTime * (driftMultiplier - 1); //virtual drift (if the existing multiplier wasn't there)
             double mult = ( driftAmount / (double)driftTime )*-1.0 + 1.0;
-            
+
             if(mult < 1.1 && mult > 0.9) {
                 System.out.printf("Drift correction set to: %f\n", mult);
                 driftMultiplier = mult;
@@ -470,7 +468,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
 
 
         while((double)curTime() + (double)playerOffset.getOffset() + seekOffset < (double)fragmentTimes[fragment%BUFSIZE]) {//wait till it's time to play it
-            Thread.sleep(1);   
+            Thread.sleep(1);
         }
         //volCtrl.setValue(volCtrl.getMinimum());
         lastSeekTime = curTime();
