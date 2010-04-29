@@ -377,7 +377,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
 
                 //once sync has been polled 50 times exactly, update sync offset
                 //this measures how good the seek was
-                if(avgDifCount == 150 && thisFragmentPos > 150 && correctDrift) { //adjust seekOffset, average over all seeks... TODO: save this PER DEVICE, per computer ><
+                if(avgDifCount == 150 && thisFragmentPos > 50 && correctDrift) { //adjust seekOffset, average over all seeks... TODO: save this PER DEVICE, per computer ><
                     seekOffset = ((seekOffset*(double)seekOffsetCount) - (avgDif-seekOffset))/((double)seekOffsetCount+1.0);
                     seekOffsetCount++;
                     lastSeekOffset = avgDif;
@@ -446,26 +446,11 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
             line.flush();
         }
 
-        //determine speedup/slowdown
-        if (seekOffsetCount > 0 && lastSeekTime != 0 && lastDriftTime != 0 && correctDrift) { //todo: are all these checks needed? think abt your code
-            double driftAmount = lastDriftOffset - lastSeekOffset; //how much did it actually drift
-            long driftTime = lastDriftTime - lastSeekTime;
-            driftAmount -= driftTime * (driftMultiplier - 1); //virtual drift (if the existing multiplier wasn't there)
-            double mult = ( driftAmount / (double)driftTime )*-1.0 + 1.0;
-
-            if(mult < 1.1 && mult > 0.9) {
-                System.out.printf("Drift correction set to: %f\n", mult);
-                driftMultiplier = mult;
-            }
-
-        }
-
+        adjustSpeed();
 
         setNewStartPoint(fragment);
         read=fragment;
         doBuffer = true;
-
-
 
         while((double)curTime() + (double)playerOffset.getOffset() + seekOffset < (double)fragmentTimes[fragment%BUFSIZE]) {//wait till it's time to play it
             Thread.sleep(1);
@@ -478,6 +463,50 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
         seeking = false;
         justSeeked = true;
         correctDrift = true;
+    }
+    
+    void adjustSpeed() {
+        if (seekOffsetCount > 0 && lastSeekTime != 0 && lastDriftTime != 0 && correctDrift) { //todo: are all these checks needed? think abt your code
+            /*double driftAmount = lastDriftOffset - lastSeekOffset; //how much did it actually drift
+            long driftTime = lastDriftTime - lastSeekTime;
+            driftAmount -= driftTime * (driftMultiplier - 1); //virtual drift (if the existing multiplier wasn't there)
+            double mult = ( driftAmount / (double)driftTime )*-1.0 + 1.0;*/
+
+            //determine speedup/slowdown
+            //g(t) = f(t)*(2-oldMultiplier) is total playback frames amount
+            //driftTime = t2 - t1 : lastDriftTime - lastSeekTime
+            //driftAmount = f(lastDriftTime
+            long t2 = lastDriftTime;
+            long t1 = lastSeekTime;
+            long t=t2-t1;/*
+            double oldMultiplier = driftMultiplier;
+            double newMultiplier;
+            double gt2 = lastDriftOffset;
+            double gt1 = lastSeekOffset;
+            double error = gt2-gt1;
+            double gt2a = gt2/(2-oldMultiplier); //adjusted
+            double error = (gt2 - gt1)/(2-oldMultiplier);
+            double diffperms = diff / (t2-t1); //difference per millisecond traversed.. i.e. rate of divergance*/
+
+            double mult = (2-driftMultiplier);
+
+            double x2 = lastDriftOffset;
+            double x2a = x2 + -t*(1-mult);
+            double x1 = lastSeekOffset;
+            double error = (x2a - x1);
+            // in operation, x2 = x1 + errorpersecond * time * mult
+            double mult2 = error / t+1;
+            double newMultiplier = 2 - mult2;
+
+
+
+
+            //if(newMultiplier < 1.1 && newMultiplier > 0.9) {
+                System.out.printf("Over %dms, drifted %fms under multiplier of %f (otherwise would have been %fms). Drift correction set from: %f to: %f\n",t2-t1,x2-x1,driftMultiplier,x2a-x1,driftMultiplier, newMultiplier);
+                driftMultiplier = newMultiplier;
+            //}
+
+        }
     }
 
     // frames played since fragment x, getStartFragment
