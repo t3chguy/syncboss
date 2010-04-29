@@ -221,7 +221,7 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
         frame.pack();
         frame.setVisible(true);
 
-        frame.setTitle("SyncBoss v0.2a ($Revision$)");
+        frame.setTitle("SyncBoss v0.3 ($Revision$)");
     }
 
     private void createUIComponents() {
@@ -237,25 +237,6 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
 
 
         }
-
-
-        //debugger code  //TODO:REMOVE
-        /*Line.Info showAll = new Line.Info(Object.class);
-        //iterate mixers
-        for (Mixer.Info info : AudioSystem.getMixerInfo()) {
-
-            Mixer mixer = AudioSystem.getMixer(info);
-            //print mixer details
-            System.out.println(info.toString() + "(" + mixer.toString() + ")");
-            //iterate SourceDataLines for the mixer, printing info
-            for (Line.Info lineinfo : mixer.getSourceLineInfo(showAll)) {
-                System.out.println("...source line: " + lineinfo.toString() + " (" + lineinfo.getClass().getName() + ")");
-            }
-            //iterate TargetDataLines for the mixer, printing info
-            for (Line.Info lineinfo : mixer.getTargetLineInfo(showAll)) {
-                System.out.println("...target line: " + lineinfo.toString() + " (" + lineinfo.getClass().getName() + ")");
-            }
-        } */
 
         outputDeviceSelect = new JComboBox(list);
         outputDeviceSelect.setSelectedIndex(0);

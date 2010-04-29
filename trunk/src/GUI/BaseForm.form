@@ -120,7 +120,7 @@
           </grid>
         </constraints>
         <properties>
-          <text value="10.1.1.169"/>
+          <text value=""/>
         </properties>
       </component>
       <component id="1219e" class="javax.swing.JLabel">
