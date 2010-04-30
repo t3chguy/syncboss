@@ -19,7 +19,7 @@ For DJ (the person transmitting the music):
 Double-click SyncBoss.jar... that's it!
 No installation required.
 
-See [How to Use|Tutorial]
+See [Tutorial How to Use]
 
 == For the DJ ==
 
@@ -45,4 +45,4 @@ SyncBoss needs to accept incoming connections - make sure to allow incoming conn
 
 If everything is working correctly, open SyncBoss by double-clicking SyncBoss.jar
 
-See [How to Use|Tutorial]
+See [Tutorial How to Use]
