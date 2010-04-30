@@ -31,11 +31,11 @@ Example directory:
 or 
   * C:\Program Files\Winamp\Plugins\
 
-2. Restart Winamp
-3. Open Winamp, click Options > Preferences
-4. Click "Output" (under the "Plug-ins" heading)
-5. On the right-hand pane, select the "SyncBoss Server Output Plugin"
-6. Close the preferences
+2. Restart Winamp <br />
+3. Open Winamp, click Options > Preferences <br />
+4. Click "Output" (under the "Plug-ins" heading) <br />
+5. On the right-hand pane, select the "SyncBoss Server Output Plugin" <br />
+6. Close the preferences <br />
 
 === Configure your Firewall ===
 
