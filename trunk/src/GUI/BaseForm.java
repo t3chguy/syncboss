@@ -10,6 +10,7 @@ import javax.sound.sampled.*;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 import java.util.Vector;
+import java.util.prefs.Preferences;
 import java.net.URL;
 import java.io.IOException;
 
@@ -29,6 +30,7 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
     private JButton startBitchModeButton;
     private JButton startRequestDJModeButton;
     private JTextField djAddressField;
+
 
     public JButton getStartBitchModeButton() {
         return startBitchModeButton;
@@ -122,6 +124,7 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
     }
 
     public BaseForm() {
+
         startRequestDJModeButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 if (StateManager.setServerMode() != null) {
@@ -143,6 +146,8 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
                     SimpleMediaPlayer lp = new SimpleMediaPlayer((Mixer.Info)sl.getValue(),selfVolumeRegistry,selfOffsetRegistry);
                     if (StateManager.setClientMode(djAddressField.getText(), lp) != null) {
                         currentModeLabel.setText("Bitch Mode.");
+                        System.out.printf("Saving dj_address: %s", djAddressField.getText());
+                        StateManager.prefs.put("dj_address", djAddressField.getText());
                         startRequestDJModeButton.setEnabled(false);
                         startBitchModeButton.setEnabled(false);
                         djAddressField.setEnabled(false);
@@ -155,12 +160,18 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
             public void stateChanged(ChangeEvent e) {
                 // for each registered line control, update volume
                 updateVolumeControls();
+                // save to registry
+                System.out.printf("Saving volume: %d\n", volumeControl.getValue());
+                StateManager.prefs.putInt("volume", volumeControl.getValue());
             }
         });
         playbackOffsetSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
                 // update registered offset control
                 updateOffsets();
+                // save to registry
+                System.out.printf("Saving manual_offset: %d\n", playbackOffsetSlider.getValue());
+                StateManager.prefs.putInt("manual_offset", playbackOffsetSlider.getValue());                
             }
         });
         selectInputSourceButton.addActionListener(new ActionListener() {
@@ -187,7 +198,21 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
         });
         forceReSyncButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                StateManager.player.forceResync();                    
+                 JOptionPane pane = new JOptionPane(
+                    "Delete sync profile & re-train?.");
+                Object[] options = new String[] { "Yes", "No" };
+                pane.setOptions(options);
+                JDialog dialog = pane.createDialog(new JFrame(), "Confirm Re-train");
+                dialog.show();
+                Object obj = pane.getValue();
+                int result = -1;
+                for (int k = 0; k < options.length; k++)
+                  if (options[k].equals(obj))
+                    result = k;
+                if (result == 0) {
+                    StateManager.player.forceResync();
+                }
+
             }
         });
     }
@@ -221,6 +246,9 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
         frame.pack();
         frame.setVisible(true);
 
+
+
+
         frame.setTitle("SyncBoss v0.3 ($Revision$)");
     }
 
@@ -240,6 +268,25 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
 
         outputDeviceSelect = new JComboBox(list);
         outputDeviceSelect.setSelectedIndex(0);
+
+        // dj addr pref
+        String dj = StateManager.prefs.get("dj_address", "");
+        djAddressField = new JTextField();
+        djAddressField.setText(dj);
+        System.out.printf("Loaded dj_address: %s\n", dj);
+
+        // volume pref
+        int vol = StateManager.prefs.getInt("volume", 90);
+        volumeControl = new JSlider();
+        volumeControl.setValue(vol);
+        System.out.printf("Loaded volume: %d\n", vol);
+
+        // offset pref
+        int offset = StateManager.prefs.getInt("manual_offset", 50);
+        playbackOffsetSlider = new JSlider();
+        playbackOffsetSlider.setValue(offset);
+        System.out.printf("Loaded manual_offset: %d\n", offset);
+
 
         StateManager.setForm(this);
     }

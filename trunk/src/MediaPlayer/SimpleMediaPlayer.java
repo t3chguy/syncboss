@@ -128,6 +128,14 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
     boolean forceResync = false;
     public void forceResync() {
         this.forceResync = true;
+        seekOffset = 0.0;
+        seekOffsetCount = 0;
+        driftMultiplier = 1.0;
+        prefs.putLong("seek_count", seekOffsetCount);
+        prefs.putDouble("respeed_coefficient", driftMultiplier);
+        prefs.putDouble("seek_offset", seekOffset);
+
+        System.out.println("Reset sync vars.");                
     }
 
     /*
@@ -503,7 +511,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
     }
     
     void adjustSpeed() {
-        if (seekOffsetCount > 0 && lastSeekTime != 0 && lastDriftTime != 0 && correctDrift) { //todo: are all these checks needed? think abt your code
+        if (seekOffsetCount > 0 && lastSeekTime != 0 && lastDriftTime != 0 && correctDrift && startFragment != 0) { //todo: are all these checks needed? think abt your code
             /*double driftAmount = lastDriftOffset - lastSeekOffset; //how much did it actually drift
             long driftTime = lastDriftTime - lastSeekTime;
             driftAmount -= driftTime * (driftMultiplier - 1); //virtual drift (if the existing multiplier wasn't there)
@@ -526,9 +534,9 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
             double diffperms = diff / (t2-t1); //difference per millisecond traversed.. i.e. rate of divergance*/
 
             //damp measurements made over short periods to account for oscillation
-            double damp  = 1;
-            if (t < 100000)  { //100s
-                damp =  t/100000;
+            double damp  = 1.0;
+            if (t < 60000)  { //100s
+                damp =  (double)t/(double)60000;
             }
 
             double mult = (2-driftMultiplier);

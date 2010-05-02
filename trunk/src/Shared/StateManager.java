@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.URL;
+import java.util.prefs.Preferences;
 
 import MediaPlayer.SimpleMediaPlayer;
 import MediaPlayer.MediaTransmitter;
@@ -21,6 +22,7 @@ import GUI.BaseForm;
  * Time: 11:02:03 AM
  */
 public class StateManager {
+    static public Preferences prefs = Preferences.userNodeForPackage(StateManager.class);
     static boolean isClient = false;
     static boolean isServer = false;
     static public Socket pluginSocket;
