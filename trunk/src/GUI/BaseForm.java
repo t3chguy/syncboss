@@ -1,3 +1,31 @@
+/*
+Copyright (c) 2010, Jack Langman
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the name of the copyright holder nor the names of its contributors
+      may be used to endorse or promote products derived from this software
+      without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 package GUI;
 
 import Shared.StateManager;
@@ -12,6 +40,8 @@ import java.awt.event.ActionEvent;
 import java.util.Vector;
 import java.util.prefs.Preferences;
 import java.net.URL;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.io.IOException;
 
 import Server.*;
@@ -20,12 +50,6 @@ import MediaPlayer.OffsetObject;
 import MediaPlayer.MediaTransmitter;
 import MediaPlayer.SimpleMediaPlayer;
 
-/**
- * Created by IntelliJ IDEA.
- * User: Jack
- * Date: 28/06/2009
- * Time: 10:00:02 AM
- */
 public class BaseForm implements VolumeRegistry, OffsetRegistry {
     private JButton startBitchModeButton;
     private JButton startRequestDJModeButton;
@@ -102,6 +126,7 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
 
     private JSlider syncMonitor;
     private JButton forceReSyncButton;
+    private JLabel yourIPAddressLabel;
     private Vector<Control> volumeRegistry = new Vector<Control>();
     private Vector<OffsetObject> offsetRegistry = new Vector<OffsetObject>();
     private VolumeRegistry selfVolumeRegistry = this;
@@ -222,9 +247,11 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
         try {
             // Set System L&F
             for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
+                if ("Windows".equals(info.getName())) {
                     UIManager.setLookAndFeel(info.getClassName());
                     break;
+                } else if ("Nimbus".equals(info.getName())) {
+                    UIManager.setLookAndFeel(info.getClassName());
                 }
             }
         }
@@ -268,6 +295,24 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
 
         outputDeviceSelect = new JComboBox(list);
         outputDeviceSelect.setSelectedIndex(0);
+
+        yourIPAddressLabel = new JLabel();
+        try {
+            InetAddress addr = InetAddress.getLocalHost();
+            byte[] ip = addr.getAddress();
+                String str = null;
+                for(byte n : ip) {
+                    int x = n & 0xFF;
+                    if(str == null) {
+                        str = ""+x;
+                    } else {
+                        str = str + "." + x;
+                    }
+                }
+                yourIPAddressLabel.setText("Your IP Address: " + str);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();            
+        }
 
         // dj addr pref
         String dj = StateManager.prefs.get("dj_address", "");
