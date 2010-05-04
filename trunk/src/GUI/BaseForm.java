@@ -204,20 +204,6 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
                 if(StateManager.isServer()) {
                     //todo: remove tester code:
                     MediaTransmitter mt = null;
-                    //try {
-                        //ListObject sl = (ListObject)outputDeviceSelect.getSelectedItem();
-                        //SimpleMediaPlayer lp = new SimpleMediaPlayer((Mixer.Info)sl.getValue(),selfVolumeRegistry,selfOffsetRegistry);
-                        //listener for winamp or other plugin
-                        //AudioInputStream pluginInput = new AudioInputStream(StateManager.pluginSocket.getInputStream(),AudioSystem.getAudioInputStream(new URL("file:///C:/one.wav")).getFormat(), Long.MAX_VALUE);
-
-                        //mt = new MediaTransmitter(StateManager.getServer(),lp);
-                        //mt.sendFormat();
-                        //mt.play();
-                    //} catch (UnsupportedAudioFileException e1) {
-                    //    e1.printStackTrace();
-                    //} catch (IOException e1) {
-                    //    e1.printStackTrace();
-                    //}
                 }
             }
         });
