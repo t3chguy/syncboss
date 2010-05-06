@@ -49,11 +49,12 @@ long read;
 long writel;
 int isopen;
 int has_sent_header;
-char* header;				/* header[0] : always 1, header[1] - header[4] : samplerate, header[5] : numchannels, header[6] : bitspersample, header[7]-header[32] : unused */
+char header[32];				/* header[0] : always 1, header[1] - header[4] : samplerate, header[5] : numchannels, header[6] : bitspersample, header[7]-header[32] : unused */
 char* no_header_trigger;
 char* silence;
 int bytes_since_header=0;
 char* sb_source;
+int send_result;
 FILE* megalog;
 
 BOOL WINAPI _DllMainCRTStartup(HANDLE hInst, ULONG ul_reason_for_call, LPVOID lpReserved)
@@ -88,7 +89,7 @@ void initsocket();
 void init()
 {
 	int i;
-	header = (char*)malloc(sizeof(char)*32);
+	//header = (char*)malloc(sizeof(char)*32);
 	no_header_trigger = (char*)malloc(sizeof(char));
 	silence = (char*)malloc(sizeof(char)*PACKET_SIZE);
 	sb_source = (char*)malloc(sizeof(char*));
@@ -223,7 +224,6 @@ void close()
 }
 
 void dotcpsend(void *kill) {
-	int send_result;	
 	int send_len;
 
 	int start;
@@ -250,6 +250,7 @@ void dotcpsend(void *kill) {
 					start = 0;
 					send_len = 1;
 					is_printing_header = 1;
+					bytes_since_header = 0;
 				} else {
 					sb_source = buf;
 					start = (int)(writel % BUF_SIZE);
@@ -268,18 +269,23 @@ void dotcpsend(void *kill) {
 						sock = INVALID_SOCKET;
 						goto kill;
 						/*MessageBox(out.hMainWindow, L"Message to SyncBoss server failed.", L"", MB_OK);*/				
-					}
-					fwrite(sb_source + sizeof(char) * start, send_result, sizeof(char), megalog); 
+					}					
 					writel = writel + send_result;
 					bytes_since_header += send_result;
 					send_len -= send_result;
 					start += send_result;
 				} while (send_len > 0);
+				
 			}
 
 			if(is_printing_header == 1) {
+				fprintf(megalog, "Sent header (%d)\n", bytes_since_header); 
 				is_printing_header = 0;
 				bytes_since_header = 0;
+			} else if(sb_source==buf) {
+				fprintf(megalog, "Sent some data (%d)\n", bytes_since_header);
+			} else if(sb_source==silence) {
+				fprintf(megalog, "Sent some silence (%d)\n", bytes_since_header);
 			}
 			/* thread sleep here */
 			/*Sleep(1);*/
