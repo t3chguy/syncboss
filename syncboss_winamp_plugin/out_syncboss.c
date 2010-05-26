@@ -225,9 +225,10 @@ void close()
 
 void dotcpsend(void *kill) {
 	int send_len;
-
+	int i;
 	int start;
 	int is_printing_header = 0;
+	int megadebugcount = 0;
 
 	is_killed = 0;
 	if(!failed) {
@@ -251,6 +252,7 @@ void dotcpsend(void *kill) {
 					send_len = 1;
 					is_printing_header = 1;
 					bytes_since_header = 0;
+					megadebugcount++;
 				} else {
 					sb_source = buf;
 					start = (int)(writel % BUF_SIZE);
@@ -269,12 +271,17 @@ void dotcpsend(void *kill) {
 						sock = INVALID_SOCKET;
 						goto kill;
 						/*MessageBox(out.hMainWindow, L"Message to SyncBoss server failed.", L"", MB_OK);*/				
-					}					
+					}
+					/*debug*/
+					for(i=0;i<send_result;i++) {
+						fprintf(megalog, "%d\n", (int)*(sb_source+sizeof(char)*(start+i)));
+					}
+					/*end debug*/
 					writel = writel + send_result;
 					bytes_since_header += send_result;
 					send_len -= send_result;
 					start += send_result;
-				} while (send_len > 0);
+				} while (send_len > 0 && has_sent_header);
 				
 			}
 
@@ -283,7 +290,7 @@ void dotcpsend(void *kill) {
 				is_printing_header = 0;
 				bytes_since_header = 0;
 			} else if(sb_source==buf) {
-				fprintf(megalog, "Sent some data (%d)\n", bytes_since_header);
+				fprintf(megalog, "Sent some data %d (%d)\n",megadebugcount, bytes_since_header);
 			} else if(sb_source==silence) {
 				fprintf(megalog, "Sent some silence (%d)\n", bytes_since_header);
 			}
