@@ -102,7 +102,7 @@ public class Client implements UDPHandler, AbstractMediaPlayer, TCPHandler {
 
         //transmit format if something is already playing
         if(StateManager.isPlaying()) {
-            this.setFormat(StateManager.getAudioStream().getFormat());
+            this.setFormat(StateManager.getFormat());
             this.play();
         }
         t.start();        
@@ -215,7 +215,9 @@ public class Client implements UDPHandler, AbstractMediaPlayer, TCPHandler {
         sendDataMessage(msg.getBytes());
     }
 
+    boolean isPlaying = false;
     public void play() {
+        isPlaying = true;
         try { //todo: retry?
             sendDataMessage("p\n");
         } catch (Exception e) {
@@ -224,6 +226,10 @@ public class Client implements UDPHandler, AbstractMediaPlayer, TCPHandler {
     }
 
     public void stop() {
+        //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    public void flush() {
         //To change body of implemented methods use File | Settings | File Templates.
     }
 

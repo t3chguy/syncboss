@@ -36,6 +36,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.Date;
 import java.io.IOException;
+import java.io.InputStream;
 
 import Server.Server;
 import Server.Client;
@@ -44,7 +45,8 @@ import Shared.StateManager;
 public class MediaTransmitter {
 
 
-    AudioInputStream input;
+    InputStream input;
+    AudioFormat inputFormat;
     Server server;
     AbstractMediaPlayer localPlayer;
     final static int packetSize = 16384; //todo: globalize this
@@ -52,28 +54,37 @@ public class MediaTransmitter {
     double packetTimeMillisecondsDouble; // more accurate
     final static int buffAhead = 1000; //how many milliseconds to buffer ahead? note.. changing this requires changing values in plugins
 
-    public void setInputStream(AudioInputStream input) {
+    public void setInputStream(InputStream input) {
         this.input = input;
     }
 
-    public MediaTransmitter(AudioInputStream input, Server server, AbstractMediaPlayer localPlayer) {
+    public MediaTransmitter(InputStream input, Server server, AbstractMediaPlayer localPlayer) {
         this.input = input;
         this.localPlayer = localPlayer;
         this.server = server;
-        packetTimeMilliseconds = (int) (((packetSize / input.getFormat().getFrameSize())) / input.getFormat().getFrameRate() * 1000.0);
-        packetTimeMillisecondsDouble = ((double) packetSize / (double) input.getFormat().getFrameSize()) / (double) input.getFormat().getFrameRate() * 1000.0;
-        System.out.println("Starting MediaTransmitter with fragment length of " + packetTimeMilliseconds + "ms.");
+        System.out.println("Starting MediaTransmitter");// with fragment length of " + packetTimeMilliseconds + "ms.");
     }
 
     public static int getPacketSize() {
         return packetSize;
     }
 
+    void setFormat(AudioFormat f) {
+        inputFormat = f;
+        packetTimeMilliseconds = (int) (((packetSize / f.getFrameSize())) / f.getFrameRate() * 1000.0);
+        packetTimeMillisecondsDouble = ((double) packetSize / (double) f.getFrameSize()) / (double) f.getFrameRate() * 1000.0;
+        sendFormat();
+    }
+
+    public AudioFormat getFormat() {
+        return inputFormat;
+    }
+
     public void sendFormat() {
-        localPlayer.setFormat(input.getFormat());
+        localPlayer.setFormat(inputFormat);
 
         for (Client c : server.getClients()) {
-            c.setFormat(input.getFormat());
+            c.setFormat(inputFormat);
         }
     }
 
@@ -81,41 +92,90 @@ public class MediaTransmitter {
     long inBufHead=0;
     long inBufRead=0;
     private void buffer() {
-        int bytesread = 0;
+        int megadebugcount = 0;
+        System.out.println("Input buffer init.");
         byte[] buf=new byte[1024];
         for(;;) { //TODO: Check if stopped
             try {
-                if((inBufHead - inBufRead) < (inBuf.length - buf.length) ) { // is there space for another KB?
-                    /*this.input = new AudioInputStream(StateManager.pluginSocket.getInputStream(),AudioSystem.getAudioInputStream(new URL("file:///C:/one.wav")).getFormat(), Long.MAX_VALUE); *///todo: OO this code, handle winamp reconnects
-                    bytesread = input.read(buf, 0, buf.length);
-                    for(int i=0;i<bytesread;i++) {
-                        inBuf[(int)(inBufHead%inBuf.length)] = buf[i];
-                        inBufHead++;
+                int headerbyte = input.read();
+                int data;
+                //System.out.print(in+"."); //todo: remove debug
+                if(headerbyte==-1) {
+                    throw new Exception("Stream dead?");
+                }
+                if(headerbyte==1) { //0 implies no new format info, 1 implies new format info
+                    //flush buffer
+
+                    int[] header = new int[32];
+                    for(int i=1;i<32;i++) { //total header size is 32, already read 1 byte, leave the first byte blank so i can read it easy
+                        data=input.read(); //todo: remove debug
+                        //System.out.print(in+".");
+                        header[i] = data;
+                    }
+                    int sr; //samplerate
+                    sr = (header[1] << 24) | (header[2] << 16) | (header[3] << 8) | (header[4]);
+                    int numchans = header[5];
+                    int bps = header[6];
+
+                    //debug code
+                    /*for(int i=0;i<32;i++) {
+                        System.out.printf("%d.",header[i]);
+                    } */
+
+
+                    System.out.printf("sr: %d, ch: %d, bps: %d\n", sr, numchans, bps);
+
+                    AudioFormat newFormat = new AudioFormat((float)sr,bps,numchans,true,false);
+
+                    if(getFormat()==null || !newFormat.matches(getFormat())) {
+                        inBufRead=inBufHead=0;
+                        startTime = -1;
+                        fragmentsSent = 0;
+                        setFormat(newFormat);
+                    }
+
+
+
+                }
+                int it = 0;
+                megadebugcount++;
+                while(it < INCOMING_PACKET_SIZE) {
+                    if((inBufHead - inBufRead) < inBuf.length) {
+                        byte d[] = new byte[1];
+                        int incount = input.read(d,0,1);
+                        if(incount > 0) {
+                            if(it==0 || it==INCOMING_PACKET_SIZE-1) System.out.println(megadebugcount + "-" + it + ":" + (int)d[0]); //debug
+                            //System.out.print((char)in);
+                            //System.out.print(data);
+                            inBuf[(int)(inBufHead%inBuf.length)] = d[0];
+                            inBufHead++;
+                            it++;
+                        }
+                    } else {
+                        Thread.sleep(1);
                     }
                 }
             } catch (Exception e) { //probably the input failed, wait for it to come back
-                System.out.printf("Input stream seems to have failed. Retrying.\n");
+                e.printStackTrace();
+                System.out.printf("Input stream seems to have failed. Retrying.\n");                
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e1) {
                     e1.printStackTrace();
                 }
-            }
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            }            
         }
     }
 
     long startTime = -1;
     long fragmentsSent = 0;
+    final static int INCOMING_PACKET_SIZE = 1024; //needs to match winamp code
+    boolean doPrintError = true;
     private void sendData() {
         if (startTime == -1) startTime = curTime();
         byte[] buf = new byte[packetSize]; //packet out
-      
-        if (inBufHead - inBufRead >= packetSize) { //check there's enough info in the buffer
+
+        if (inBufHead - inBufRead >= packetSize && getFormat() != null) { //check there's enough info in the buffer
 
             long checksum = 0;
             // First, read some bytes from the buffer.
@@ -136,8 +196,13 @@ public class MediaTransmitter {
             for (Client c : server.getClients()) {
                 c.queue(buf, startTime + (long) (packetTimeMillisecondsDouble * (double) fragmentsSent) + buffAhead);
             }
+            doPrintError = true;
         } else {
-            System.out.println("MediaTransmitter is ... STARVING!!");
+            if(doPrintError) {
+                System.out.println("MediaTransmitter is ... STARVING!!");
+                doPrintError = false;
+            }
+
         }
 
         fragmentsSent++; //regardless of whether we sent data, increment the fragment count so
@@ -179,7 +244,7 @@ public class MediaTransmitter {
             public void run() {
                 try {
                     sendData();
-                    Thread.sleep(buffAhead / 2);
+                    //Thread.sleep(buffAhead / 2);
                     localPlayer.play();
                     //send remote
                     for (Client c : server.getClients()) {

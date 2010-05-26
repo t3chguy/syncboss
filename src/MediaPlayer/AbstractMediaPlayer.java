@@ -36,6 +36,7 @@ public interface AbstractMediaPlayer {
     //public AbstractMediaPlayer(VolumeRegistry volumeRegistry, OffsetRegistry offsetRegistry, Object mixerInfo);
     public void play();
     public void stop();
+    public void flush();
     public void queue(byte[] data, long time);
     public void setFormat(AudioFormat format);
     public void forceResync();

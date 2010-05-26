@@ -75,7 +75,9 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
 
     }
 
+    boolean isPlaying = false;
     public void play() {
+        isPlaying = true;
         if (stop) {
             stop = false;
             Thread t = new Thread() {
@@ -95,6 +97,10 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
     public void stop() {
         stop = true;
         line.stop();
+    }
+
+    public void flush() {
+        //To change body of implemented methods use File | Settings | File Templates.
     }
 
     public void queue(byte[] data, long time) {
@@ -383,6 +389,7 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
     double avgDif;
     long avgDifCount;
     boolean correctDrift = true;
+    boolean printError = true;
     public void syncLine() {
         //some synchronisation vars:
         double millisecondsPerFrame = 1.0 / (double) format.getFrameRate() * 1000.0;
@@ -417,10 +424,13 @@ public class SimpleMediaPlayer implements AbstractMediaPlayer {
                 //System.out.printf("d%d,p%d|", dif, thisFragmentPos);
 
                 //ignore weird soundcard output
+
                 if((justSeeked && (dif<-100 || dif>100)) || (dif<-100000 || dif > 100000)) {
-                    System.out.println("Seek time was unusual... " + dif + "ms");
+                    if (printError) System.out.println("Seek time was unusual... " + dif + "ms");
+                    printError = false;
                 } else {
                    //difference moving average
+                    printError = true;
                    avgDif = (avgDif*(double)avgDifCount + (double)dif)/(double)(avgDifCount + 1.0);
                    if(avgDifCount < 200) {
                        avgDifCount++;

@@ -127,6 +127,7 @@ public class BaseForm implements VolumeRegistry, OffsetRegistry {
     private JSlider syncMonitor;
     private JButton forceReSyncButton;
     private JLabel yourIPAddressLabel;
+    private JTabbedPane megadab;
     private Vector<Control> volumeRegistry = new Vector<Control>();
     private Vector<OffsetObject> offsetRegistry = new Vector<OffsetObject>();
     private VolumeRegistry selfVolumeRegistry = this;

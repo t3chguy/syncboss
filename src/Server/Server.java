@@ -67,7 +67,7 @@ public class Server {
                         for(Client c : getClients()) {
                             c.doSync();
                         }
-                        Thread.sleep(1000);
+                        Thread.sleep(500);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();

@@ -33,6 +33,8 @@ import Client.*;
 
 import javax.sound.sampled.*;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.URL;
@@ -48,7 +50,7 @@ public class StateManager {
     static boolean isClient = false;
     static boolean isServer = false;
     static public Socket pluginSocket;
-    static public AudioInputStream audioInputStream = null;
+    static public InputStream audioInputStream = null;
     static public BaseForm form;
     static public boolean isTransmit = false;
     static MediaTransmitter mt;
@@ -66,7 +68,7 @@ public class StateManager {
         pluginSocket = socket;
         try {
             //AudioSystem.getAudioInputStream(new URL("file:///c:/one.wav")).getFormat()
-            audioInputStream = new AudioInputStream(pluginSocket.getInputStream(), new AudioFormat((float)44100.0,16,2,true,false), Long.MAX_VALUE); //todo: fetch this otherways
+            audioInputStream = pluginSocket.getInputStream();//, new AudioFormat((float)44100.0,16,2,true,false), Long.MAX_VALUE);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -84,12 +86,16 @@ public class StateManager {
         player = lp;
 
         mt = new MediaTransmitter(audioInputStream, getServer(), lp);
-        mt.sendFormat();
+        /*mt.sendFormat();*/
         mt.play();
         isTransmit = true;
     }
 
-    static public AudioInputStream getAudioStream() {
+    static public AudioFormat getFormat() {
+        return mt.getFormat();
+    }
+
+    static public InputStream getAudioStream() {
         return audioInputStream;
     }
 
