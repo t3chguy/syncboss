@@ -51,10 +51,11 @@ int isopen;
 int has_sent_header;
 char header[32];				/* header[0] : always 1, header[1] - header[4] : samplerate, header[5] : numchannels, header[6] : bitspersample, header[7]-header[32] : unused */
 char* no_header_trigger;
-char* silence;
+char silence[PACKET_SIZE]={0};
 int bytes_since_header=0;
 char* sb_source;
 int send_result;
+int doflush;
 FILE* megalog;
 
 BOOL WINAPI _DllMainCRTStartup(HANDLE hInst, ULONG ul_reason_for_call, LPVOID lpReserved)
@@ -91,13 +92,9 @@ void init()
 	int i;
 	//header = (char*)malloc(sizeof(char)*32);
 	no_header_trigger = (char*)malloc(sizeof(char));
-	silence = (char*)malloc(sizeof(char)*PACKET_SIZE);
 	sb_source = (char*)malloc(sizeof(char*));
 	for(i=0;i<32;i++) {
 		*(header + i) = i;
-	}
-	for(i=0;i<PACKET_SIZE;i++) {
-		*(silence + i) = 0;
 	}
 	*no_header_trigger = 0;
 
@@ -157,12 +154,12 @@ int open(int samplerate, int numchannels, int bitspersamp, int bufferlenms, int 
 	/* end debugging stuff */
 
 	if(samplerate == 0 || numchannels == 0 || bitspersamp == 0) {
-		return -1;
+		return;
 	}
 
 	/* build header */
 	has_sent_header = 0;	
-	*(header + 0) = 1;
+	*(header + 0) = 0x01;
 	*(header + 4) = (char)((samplerate) & 0x000000FF);
 	*(header + 3) = (char)((samplerate >> 8) & 0x000000FF);
 	*(header + 2) = (char)((samplerate >> 16) & 0x000000FF);
@@ -232,7 +229,7 @@ void dotcpsend(void *kill) {
 
 	is_killed = 0;
 	if(!failed) {
-		while(!*((int*)kill)) {
+		while(!*((int*)kill) || ((bytes_since_header != PACKET_SIZE) && (bytes_since_header != 0))) { //only kill once the packet has been rounded out
 			if(!has_sent_header) { /*need to update header*/
 				if(bytes_since_header != PACKET_SIZE && bytes_since_header != 0) { /* not time for new header, send some silence */
 					sb_source = silence;
@@ -277,22 +274,25 @@ void dotcpsend(void *kill) {
 						fprintf(megalog, "%d\n", (int)*(sb_source+sizeof(char)*(start+i)));
 					}
 					/*end debug*/
+					/*if(doflush) {
+						break;
+					}*/
 					writel = writel + send_result;
 					bytes_since_header += send_result;
 					send_len -= send_result;
 					start += send_result;
 				} while (send_len > 0 && has_sent_header);
-				
+				//doflush=0;
 			}
 
 			if(is_printing_header == 1) {
-				fprintf(megalog, "Sent header (%d)\n", bytes_since_header); 
+				//fprintf(megalog, "Sent header (%d)\n", bytes_since_header); 
 				is_printing_header = 0;
 				bytes_since_header = 0;
 			} else if(sb_source==buf) {
-				fprintf(megalog, "Sent some data %d (%d)\n",megadebugcount, bytes_since_header);
+				//fprintf(megalog, "Sent some data %d (%d)\n",megadebugcount, bytes_since_header);
 			} else if(sb_source==silence) {
-				fprintf(megalog, "Sent some silence (%d)\n", bytes_since_header);
+				//fprintf(megalog, "Sent some silence (%d)\n", bytes_since_header);
 			}
 			/* thread sleep here */
 			/*Sleep(1);*/
@@ -305,23 +305,16 @@ kill:
 	_endthread();
 }
 
-/* todo: transmit format, rather than upsampling */
 int write(char *inbuf, int len)
 {
 	int i;
-	/*int j;*/
-	int k;
 	
 	if(len > canwrite())
 		return 1;
 
-	for(i=0;i<len;i+=bps) { /*iterate through the frames (aka samples)*/
-		/*for(j=0;j<dupe;j++) { *//*dupe it however many times to match 44.1khz / 32 bps / 2 channels*/
-			for(k=0;k<bps;k++) { /*copy the actual frame //todo: might be more efficient to memcpy*/
-				buf[(int)(read % BUF_SIZE)] = inbuf[i+k];
-				read++;
-			}
-		/*}*/
+	for(i=0;i<len;i++) {
+		buf[(int)(read % BUF_SIZE)] = inbuf[i];
+		read++;
 	}
 	return 0;
 }
@@ -330,7 +323,7 @@ int canwrite()
 {	
 
 	if (failed) return 0;
-	return min(BUF_SIZE-(read-writel), 65536)/*/dupe*/;
+	return min(BUF_SIZE-(read-writel), 65536);
 	/*if (last_pause) return 0;
 	if (getwrittentime() < getoutputtime()+MulDiv(65536,1000,srate*bps*numchan/8)) return 65536;
 	return 0;*/
