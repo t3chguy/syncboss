@@ -22,17 +22,13 @@
 /* thread prototype */
 int killswitch; /* thread killswitch, kill == 1 */
 int is_killed; /* has thread killed istelf? yes == 1 */
-/*unsigned int thread_id;*/
 void dotcpsend(void *kill); 
-
-
 
 int getwrittentime();
 int getoutputtime();
 
 int srate, numchan, bps, active;
 volatile int w_offset;
-
 
 WORD wVersionRequested;          /* socket dll version info */ 
 WSADATA wsaData;                 /* data for socket lib initialisation */
@@ -46,6 +42,8 @@ char buf[BUF_SIZE];
 long read;
 long writel;
 int isopen;
+char header[32];
+int has_sent_header;
 
 BOOL WINAPI _DllMainCRTStartup(HANDLE hInst, ULONG ul_reason_for_call, LPVOID lpReserved)
 {
@@ -139,7 +137,17 @@ int open(int samplerate, int numchannels, int bitspersamp, int bufferlenms, int 
 	srate = samplerate;
 	bps = bitspersamp;
 
-	
+	/* build header */
+	has_sent_header = 0;	
+	*(header + 0) = 0x01;
+	*(header + 4) = (char)((samplerate) & 0x000000FF);
+	*(header + 3) = (char)((samplerate >> 8) & 0x000000FF);
+	*(header + 2) = (char)((samplerate >> 16) & 0x000000FF);
+	*(header + 1) = (char)((samplerate >> 24) & 0x000000FF);
+
+	*(header + 5) = (char)numchannels;
+	*(header + 6) = (char)bitspersamp;
+
 	
 	/* open socket */
 
@@ -174,15 +182,62 @@ void close()
 
 }
 
+int numbytes=0;
+char silence[1024] = {0};
+int send_result=0;
+
+int mainheader() {
+	int headercount = 0;
+	do {
+		send_result = send(sock,header+sizeof(header)*headercount,32-headercount,0);
+		if(send_result < 0) {
+			return -1;
+		}
+		headercount += send_result;
+	} while(headercount < 32);
+	has_sent_header = 1;
+	return 1;
+}
+
+int doheaders() {
+	if(numbytes==1024) {
+		numbytes = 0;
+	}
+	if(!has_sent_header && numbytes != 0) { //silence
+		do {
+			send_result = send(sock,silence,1024-numbytes,0);
+			if(send_result < 0) {
+				return -1;
+			}
+			numbytes += send_result;
+		} while(numbytes < 1024);
+		numbytes = 0;
+		if(mainheader()<0) return -1;
+	} else if(!has_sent_header && numbytes == 0) {
+		if(mainheader()<0) return -1;
+	} else if(has_sent_header && numbytes == 0) {
+		do {
+			send_result = send(sock,silence,1,0);
+			if(send_result < 0) {
+				return -1;
+			}			
+		} while(send_result == 0);
+	}	
+	return 1;
+
+}
+
 void dotcpsend(void *kill) {
-	int send_result;	
 	int send_len;
 	int writehead;
 	is_killed = 0;
 	if(!failed) {
 		while(!*((int*)kill)) {
+			if(!has_sent_header || (numbytes == 1024) || (numbytes == 0)) {
+				if(doheaders()<0) { failed=1; isopen=0; writel=read; initsocket();numbytes=0; break; }
+			}
 			writehead = (int)(writel % BUF_SIZE);
-			send_len = min(min(read - writel,BUF_SIZE - writehead), 8192); /* make sure we only send contiguous data */
+			send_len = min(min(read - writel,BUF_SIZE - writehead), 1024-numbytes); /* make sure we only send contiguous data */
 			if(send_len>0) {
 				send_result = send(sock,buf + sizeof(char) * writehead,send_len,0);
 				if(send_result < 0) {
@@ -192,9 +247,11 @@ void dotcpsend(void *kill) {
 					writel=read;
 					/*MessageBox(out.hMainWindow, L"Message to SyncBoss server failed.", L"", MB_OK);*/
 					initsocket();
+					numbytes=0;
 					break;
 				}
 				writel = writel + send_result;
+				numbytes = numbytes + send_result;
 			} 
 			/* thread sleep here */
 			/*Sleep(1);*/
