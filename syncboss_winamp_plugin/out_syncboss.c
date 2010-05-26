@@ -9,7 +9,7 @@
 #include <math.h>
 #include "../winamp/out.h"
 
-#define PI_VER2 "v1.01"
+#define PI_VER2 "v1.0"
 
 #ifdef __alpha
 #define PI_VER PI_VER2 " (AXP)"
@@ -18,7 +18,6 @@
 #endif
 
 #define BUF_SIZE 1048576 /* 1 meg buffer TOO BIG???*/
-#define PACKET_SIZE 1024
 
 /* thread prototype */
 int killswitch; /* thread killswitch, kill == 1 */
@@ -32,7 +31,6 @@ int getwrittentime();
 int getoutputtime();
 
 int srate, numchan, bps, active;
-int dupe;
 volatile int w_offset;
 
 
@@ -48,15 +46,6 @@ char buf[BUF_SIZE];
 long read;
 long writel;
 int isopen;
-int has_sent_header;
-char header[32];				/* header[0] : always 1, header[1] - header[4] : samplerate, header[5] : numchannels, header[6] : bitspersample, header[7]-header[32] : unused */
-char* no_header_trigger;
-char silence[PACKET_SIZE]={0};
-int bytes_since_header=0;
-char* sb_source;
-int send_result;
-int doflush;
-FILE* megalog;
 
 BOOL WINAPI _DllMainCRTStartup(HANDLE hInst, ULONG ul_reason_for_call, LPVOID lpReserved)
 {
@@ -69,15 +58,15 @@ int canwrite();
 
 void config(HWND hwnd)
 {
-	char ansistr[69];
+	char ansistr[20];
 	int a;
 	BSTR unicodestr;
 
-	sprintf(ansistr, "%d.read:%d.writel:%d", canwrite(), read, writel);
+	sprintf(ansistr, "%d", canwrite());
 	a = lstrlenA(ansistr);
 	unicodestr = SysAllocStringLen(NULL, a);
 	MultiByteToWideChar(CP_ACP, 0, ansistr, a, unicodestr, a);
-	MessageBox(out.hMainWindow, unicodestr, L"", MB_OK);/* todo: remove debugger code */
+	/*MessageBox(out.hMainWindow, unicodestr, L"", MB_OK); *//* todo: remove debugger code */
 	SysFreeString(unicodestr);
 }
 
@@ -89,15 +78,6 @@ void initsocket();
 
 void init()
 {
-	int i;
-	//header = (char*)malloc(sizeof(char)*32);
-	no_header_trigger = (char*)malloc(sizeof(char));
-	sb_source = (char*)malloc(sizeof(char*));
-	for(i=0;i<32;i++) {
-		*(header + i) = i;
-	}
-	*no_header_trigger = 0;
-
 	failed = 0;
 	read = 0;
 	writel = 0;
@@ -121,9 +101,6 @@ void init()
 	host=gethostbyname(HostName);
 
 	address.sin_addr.s_addr=*((unsigned long *) host->h_addr);
-
-	/* debug... open file */
-	megalog = fopen("C:\\syncboss_out_log.txt", "w");
 }
 
 void initsocket() {
@@ -145,29 +122,15 @@ int open(int samplerate, int numchannels, int bitspersamp, int bufferlenms, int 
 	char ansistr[169];
 	int a;
 	BSTR unicodestr;
-	/*sprintf(ansistr, "samplerate: %d, numchans: %d, bits/sample: %d", samplerate, numchannels, bitspersamp);*/
+	sprintf(ansistr, "samplerate: %d, numchans: %d, bits/sample: %d", samplerate, numchannels, bitspersamp);
 	a = lstrlenA(ansistr);
 	unicodestr = SysAllocStringLen(NULL, a);
 	MultiByteToWideChar(CP_ACP, 0, ansistr, a, unicodestr, a);
 	/*MessageBox(out.hMainWindow, unicodestr, L"", MB_OK); *//* todo: remove debugger code */
-	SysFreeString(unicodestr);	
+	SysFreeString(unicodestr);
+	
+
 	/* end debugging stuff */
-
-	if(samplerate == 0 || numchannels == 0 || bitspersamp == 0) {
-		return;
-	}
-
-	/* build header */
-	has_sent_header = 0;	
-	*(header + 0) = 0x01;
-	*(header + 4) = (char)((samplerate) & 0x000000FF);
-	*(header + 3) = (char)((samplerate >> 8) & 0x000000FF);
-	*(header + 2) = (char)((samplerate >> 16) & 0x000000FF);
-	*(header + 1) = (char)((samplerate >> 24) & 0x000000FF);
-
-	*(header + 5) = (char)numchannels;
-	*(header + 6) = (char)bitspersamp;
-
 
 	start_t=GetTickCount();
  	w_offset = 0;
@@ -176,24 +139,15 @@ int open(int samplerate, int numchannels, int bitspersamp, int bufferlenms, int 
 	srate = samplerate;
 	bps = bitspersamp;
 
-	/* frame dupe num: */
-	/*dupe = 1;
-	dupe = dupe * (2 / numchan);
-	dupe = dupe * (44100 / srate);
-	dupe = dupe * (16 / bps);*/
-
-	/* flush counters */
-	read = 0;
-	writel = 0;
+	
 	
 	/* open socket */
 
 	/*MessageBox(out.hMainWindow, L"Open code getting cald.", L"", MB_OK);*/
 	if(!isopen) {
-		initsocket();
-		if (sock!=INVALID_SOCKET && connect(sock,(struct sockaddr *) &address, sizeof(address)) != 0) {
+		if (connect(sock,(struct sockaddr *) &address, sizeof(address)) != 0) {
 			failed=1;
-			/*MessageBox(out.hMainWindow, L"WINAMP PLUGIN: Connection to SyncBoss server failed; make sure the server is in DJ mode.", L"", MB_OK);*/
+			/*MessageBox(out.hMainWindow, L"Connection to SyncBoss server failed.", L"", MB_OK);*/
 			return -1;
 		} else {
 			/*MessageBox(out.hMainWindow, L"Connection Succeeded.", L"", MB_OK); *//* todo: remove debug */
@@ -221,86 +175,35 @@ void close()
 }
 
 void dotcpsend(void *kill) {
+	int send_result;	
 	int send_len;
-	int i;
-	int start;
-	int is_printing_header = 0;
-	int megadebugcount = 0;
-
+	int writehead;
 	is_killed = 0;
 	if(!failed) {
-		while(!*((int*)kill) || ((bytes_since_header != PACKET_SIZE) && (bytes_since_header != 0))) { //only kill once the packet has been rounded out
-			if(!has_sent_header) { /*need to update header*/
-				if(bytes_since_header != PACKET_SIZE && bytes_since_header != 0) { /* not time for new header, send some silence */
-					sb_source = silence;
-					start = 0;
-					send_len = PACKET_SIZE - bytes_since_header;
-				} else { /* send actual header */
-					sb_source = header;
-					start = 0;
-					send_len = 32;
-					has_sent_header = 1;
-					is_printing_header = 1;
-				}				
-			} else {
-				if(bytes_since_header == PACKET_SIZE) { /* inform syncboss that no header is coming */
-					sb_source = no_header_trigger;
-					start = 0;
-					send_len = 1;
-					is_printing_header = 1;
-					bytes_since_header = 0;
-					megadebugcount++;
-				} else {
-					sb_source = buf;
-					start = (int)(writel % BUF_SIZE);
-					send_len = min(min(read - writel,BUF_SIZE - start), PACKET_SIZE-bytes_since_header); /* make sure we only send contiguous data, and no more than remaining in 1 packet */
-				}
-			}
+		while(!*((int*)kill)) {
+			writehead = (int)(writel % BUF_SIZE);
+			send_len = min(min(read - writel,BUF_SIZE - writehead), 8192); /* make sure we only send contiguous data */
 			if(send_len>0) {
-				do {
-					send_result = send(sock,sb_source + sizeof(char) * start,send_len,0);
-					if(send_result < 0) {
-						//error
-						bytes_since_header = 0;
-						isopen = 0;
-						failed = 1;
-						writel=read;
-						sock = INVALID_SOCKET;
-						goto kill;
-						/*MessageBox(out.hMainWindow, L"Message to SyncBoss server failed.", L"", MB_OK);*/				
-					}
-					/*debug*/
-					for(i=0;i<send_result;i++) {
-						fprintf(megalog, "%d\n", (int)*(sb_source+sizeof(char)*(start+i)));
-					}
-					/*end debug*/
-					/*if(doflush) {
-						break;
-					}*/
-					writel = writel + send_result;
-					bytes_since_header += send_result;
-					send_len -= send_result;
-					start += send_result;
-				} while (send_len > 0 && has_sent_header);
-				//doflush=0;
-			}
-
-			if(is_printing_header == 1) {
-				//fprintf(megalog, "Sent header (%d)\n", bytes_since_header); 
-				is_printing_header = 0;
-				bytes_since_header = 0;
-			} else if(sb_source==buf) {
-				//fprintf(megalog, "Sent some data %d (%d)\n",megadebugcount, bytes_since_header);
-			} else if(sb_source==silence) {
-				//fprintf(megalog, "Sent some silence (%d)\n", bytes_since_header);
-			}
+				send_result = send(sock,buf + sizeof(char) * writehead,send_len,0);
+				if(send_result < 0) {
+					//error
+					isopen = 0;
+					failed = 1;
+					writel=read;
+					/*MessageBox(out.hMainWindow, L"Message to SyncBoss server failed.", L"", MB_OK);*/
+					initsocket();
+					break;
+				}
+				writel = writel + send_result;
+			} 
 			/* thread sleep here */
 			/*Sleep(1);*/
 		}
+		
+		
 	}
 	/* thread kill here */
 	/*MessageBox(out.hMainWindow, L"Write thread ended.", L"", MB_OK); *//* todo: remove debugger code */
-kill:
 	is_killed = 1;
 	_endthread();
 }
@@ -368,13 +271,10 @@ int getoutputtime()
 		return w_offset;*/
 	/*return GetTickCount()-start_t;*//* + w_offset;*/
 	/* todo: cleanup this */
-	int bitsps = srate * bps * numchan /** dupe*/; /* bits per second */
+	int bitsps = srate * bps * numchan; /* bits per second */
 	int bytesps = bitsps / 8; /* bytes per second */
 	double bytespms = ((double)bytesps) / 1000.0;/* bytes per millisecond */
-	if(bitsps == 0) {
-		return 0;
-	}
-	return max(0,(int)((double)(writel)/bytespms)-1000); /* return output time in milliseconds... 3000 is to do with prebuffer to synced players */
+	return max(0,(int)((double)writel/bytespms)-1000); /* return output time in milliseconds... 3000 is to do with prebuffer to synced players */
 }
 
 int getwrittentime()
@@ -395,14 +295,11 @@ int getwrittentime()
 	}
 	else*/
 /*		return ms;*/
-	/* todo: cleanup this */	
-	int bitsps = srate * bps * numchan /** dupe*/; /* bits per second */
+	/* todo: cleanup this */
+	int bitsps = srate * bps * numchan; /* bits per second */
 	int bytesps = bitsps / 8; /* bytes per second */
 	double bytespms = ((double)bytesps) / 1000.0;/* bytes per millisecond */
-	if(bitsps == 0) {
-		return 0;
-	}
-	return (int)((double)(read)/bytespms); /* return output time in milliseconds... */
+	return (int)((double)read/bytespms); /* return output time in milliseconds... */
 }
 
 Out_Module out = {
