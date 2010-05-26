@@ -40,9 +40,7 @@ import java.net.Socket;
 import java.net.URL;
 import java.util.prefs.Preferences;
 
-import MediaPlayer.SimpleMediaPlayer;
-import MediaPlayer.MediaTransmitter;
-import MediaPlayer.AbstractMediaPlayer;
+import MediaPlayer.*;
 import GUI.BaseForm;
 
 public class StateManager {
@@ -75,7 +73,7 @@ public class StateManager {
         if(!isTransmit) {
             startTransmit();
         } else {
-            mt.setInputStream(audioInputStream);
+            mt.setInputStream(new SimpleSourceMediaPlayer(audioInputStream));
         }
     }
 
@@ -84,8 +82,9 @@ public class StateManager {
         SimpleMediaPlayer lp = new SimpleMediaPlayer((Mixer.Info)sl.getValue(),form.getSelfVolumeRegistry(),form.getSelfOffsetRegistry());
 
         player = lp;
+        SourceMediaPlayer source = new SimpleSourceMediaPlayer(audioInputStream);
 
-        mt = new MediaTransmitter(audioInputStream, getServer(), lp);
+        mt = new MediaTransmitter(source, getServer(), lp);
         /*mt.sendFormat();*/
         mt.play();
         isTransmit = true;

@@ -44,10 +44,10 @@ import org.testng.annotations.*;
 import org.testng.Assert;
 
 
-public class MediaTransmitter {
+public class MediaTransmitter implements SourceMediaPlayerHandler {
 
 
-    InputStream input;
+    SourceMediaPlayer input;
     AudioFormat inputFormat;
     Server server;
     AbstractMediaPlayer localPlayer;
@@ -56,12 +56,13 @@ public class MediaTransmitter {
     double packetTimeMillisecondsDouble; // more accurate
     final static int buffAhead = 1000; //how many milliseconds to buffer ahead? note.. changing this requires changing values in plugins
 
-    public void setInputStream(InputStream input) {
+    public void setInputStream(SourceMediaPlayer input) {
         this.input = input;
     }
 
-    public MediaTransmitter(InputStream input, Server server, AbstractMediaPlayer localPlayer) {
-        this.input = input;
+    public MediaTransmitter(SourceMediaPlayer source, Server server, AbstractMediaPlayer localPlayer) {
+        this.input = source;
+        this.input.registerSourceMediaPlayerHandler(this);
         this.localPlayer = localPlayer;
         this.server = server;
         System.out.println("Starting MediaTransmitter");// with fragment length of " + packetTimeMilliseconds + "ms.");
@@ -77,7 +78,15 @@ public class MediaTransmitter {
         return packetSize;
     }
 
-    void setFormat(AudioFormat f) {
+    public void flush() {
+
+    }
+
+    public void pause() {
+
+    }
+
+    public void setFormat(AudioFormat f) {
         inputFormat = f;
         packetTimeMilliseconds = (int) (((packetSize / f.getFrameSize())) / f.getFrameRate() * 1000.0);
         packetTimeMillisecondsDouble = ((double) packetSize / (double) f.getFrameSize()) / (double) f.getFrameRate() * 1000.0;
@@ -102,78 +111,23 @@ public class MediaTransmitter {
     long inBufHead=0;
     long inBufRead=0;
     private void buffer() {
-        int megadebugcount = 0;
         System.out.println("Input buffer init.");
-        byte[] buf=new byte[1024];
         for(;;) { //TODO: Check if stopped
             try {
-                int headerbyte = input.read();
-                int data;
-                //System.out.print(in+"."); //todo: remove debug
-                if(headerbyte==-1) {
-                    throw new Exception("Stream dead?");
-                }
-                if(headerbyte==1) { //0 implies no new format info, 1 implies new format info
-                    //flush buffer
-
-                    int[] header = new int[32];
-                    for(int i=1;i<32;i++) { //total header size is 32, already read 1 byte, leave the first byte blank so i can read it easy
-                        data=input.read(); //todo: remove debug
-                        //System.out.print(in+".");
-                        header[i] = data;
-                    }
-                    int sr; //samplerate
-                    sr = (header[1] << 24) | (header[2] << 16) | (header[3] << 8) | (header[4]);
-                    int numchans = header[5];
-                    int bps = header[6];
-
-                    //debug code
-                    /*for(int i=0;i<32;i++) {
-                        System.out.printf("%d.",header[i]);
-                    } */
-
-
-                    System.out.printf("sr: %d, ch: %d, bps: %d\n", sr, numchans, bps);
-
-                    AudioFormat newFormat = new AudioFormat((float)sr,bps,numchans,true,false);
-
-                    if(getFormat()==null || !newFormat.matches(getFormat())) {
-                        inBufRead=inBufHead=0;
-                        startTime = -1;
-                        fragmentsSent = 0;
-                        setFormat(newFormat);
-                    }
-
-
-
-                }
-                int it = 0;
-                megadebugcount++;
-                while(it < INCOMING_PACKET_SIZE) {
-                    if((inBufHead - inBufRead) < inBuf.length) {
-                        byte d[] = new byte[1];
-                        int incount = input.read(d,0,1);
-                        if(incount > 0) {
-                            if(it==0 || it==INCOMING_PACKET_SIZE-1) System.out.println(megadebugcount + "-" + it + ":" + (int)d[0]); //debug
-                            //System.out.print((char)in);
-                            //System.out.print(data);
-                            inBuf[(int)(inBufHead%inBuf.length)] = d[0];
-                            inBufHead++;
-                            it++;
-                        }
-                    } else {
-                        Thread.sleep(1);
-                    }
+                if(true) {
+                    input.getBytes(inBuf, (int)(inBufHead % inBuf.length), (int)Math.min(inBuf.length - (inBufHead % inBuf.length), inBuf.length - inBufHead - inBufRead));
+                } else {
+                    Thread.sleep(1);
                 }
             } catch (Exception e) { //probably the input failed, wait for it to come back
                 e.printStackTrace();
-                System.out.printf("Input stream seems to have failed. Retrying.\n");                
+                System.out.printf("Input stream seems to have failed. Retrying.\n");
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e1) {
                     e1.printStackTrace();
                 }
-            }            
+            }
         }
     }
 

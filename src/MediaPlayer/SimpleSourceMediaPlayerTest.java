@@ -1,6 +1,11 @@
 package MediaPlayer;
 
-import java.io.InputStream;/*
+import org.testng.annotations.Test;
+import org.testng.Assert;
+
+import java.util.Arrays;
+import java.io.InputStream;
+import java.io.ByteArrayInputStream;/*
 Copyright (c) 2010, Jack Langman
 All rights reserved.
 
@@ -28,7 +33,29 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-public interface SourceMediaPlayer {
-    public int getBytes(byte[] out, int start, int max) throws Exception;
-    public void registerSourceMediaPlayerHandler(SourceMediaPlayerHandler h);
+public class SimpleSourceMediaPlayerTest {
+
+
+
+    @Test
+    public void testGetBytes() throws Exception {
+
+        byte[] one = new byte[69];
+        Arrays.fill(one, (byte)0);
+        one[0] = 0x00;
+        one[43] = 0x69;
+
+        byte[] target = new byte[68];
+
+        SourceMediaPlayer testplayer = new SimpleSourceMediaPlayer(new ByteArrayInputStream(one));
+        SourceMediaPlayer testplayer2 = new SimpleSourceMediaPlayer(new ByteArrayInputStream(one));
+
+        Assert.assertEquals(testplayer.getBytes(target, 0, 1000), 68, "Correct number of bytes read 1");
+        Assert.assertEquals(target[42], 0x69, "Copied to buffer without error"); //was copy without error
+        Assert.assertEquals(testplayer2.getBytes(target, 1, 50), 50, "Correct number of bytes read 2");
+        Assert.assertEquals(testplayer.getBytes(target, 0, 1000), 0, "Correct number of bytes read 3");
+        Assert.assertEquals(testplayer2.getBytes(target, 0, 21), 18, "Correct number of bytes read 4");
+
+
+    }
 }
