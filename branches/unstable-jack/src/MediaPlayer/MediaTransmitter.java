@@ -31,16 +31,18 @@ package MediaPlayer;
 import javax.sound.sampled.*;
 import java.net.Socket;
 import java.net.URL;
-import java.util.Calendar;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.Date;
+import java.util.*;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 
 import Server.Server;
 import Server.Client;
 import Shared.StateManager;
+
+import org.testng.annotations.*;
+import org.testng.Assert;
+
 
 public class MediaTransmitter {
 
@@ -65,6 +67,12 @@ public class MediaTransmitter {
         System.out.println("Starting MediaTransmitter");// with fragment length of " + packetTimeMilliseconds + "ms.");
     }
 
+    /* don't use this!?!? it's just for testing!
+    *  TODO: THIS IS SHIT */
+    public MediaTransmitter() {
+
+    }
+
     public static int getPacketSize() {
         return packetSize;
     }
@@ -87,6 +95,8 @@ public class MediaTransmitter {
             c.setFormat(inputFormat);
         }
     }
+
+
 
     byte[] inBuf = new byte[packetSize*4]; //input buffer
     long inBufHead=0;
